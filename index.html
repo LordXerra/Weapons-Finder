@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weapons Finder — Torn Weapon Market Browser</title>
+<style>
+  :root{
+    --bg:#0b0d10; --bg2:#12151a; --panel:#171b21; --panel2:#1d222a;
+    --line:#262c36; --line2:#333b48;
+    --txt:#dfe4ea; --muted:#8b95a3; --faint:#5c6675;
+    --green:#8ab446; --green-dim:#5f7d31; --green-glow:rgba(138,180,70,.15);
+    --amber:#e6a545; --blue:#5aa9e6;
+    --y:#f2d648; --o:#f0932b; --r:#e5533c;
+    --danger:#e5533c;
+    --radius:8px;
+    font-synthesis:none;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1200px 500px at 80% -10%, rgba(138,180,70,.06), transparent 60%),
+      var(--bg);
+    color:var(--txt);
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    font-size:14px; line-height:1.45; min-height:100vh;
+  }
+  a{color:var(--green); text-decoration:none}
+  a:hover{text-decoration:underline}
+  button{font-family:inherit}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:var(--bg2)}
+  ::-webkit-scrollbar-thumb{background:var(--line2);border-radius:5px}
+  ::-webkit-scrollbar-thumb:hover{background:#455063}
+
+  .wrap{max-width:1240px;margin:0 auto;padding:0 18px 60px}
+
+  /* Header */
+  header{
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(20,24,30,.9),rgba(11,13,16,.6));
+    position:sticky;top:0;z-index:50;backdrop-filter:blur(6px);
+  }
+  .head-inner{max-width:1240px;margin:0 auto;padding:12px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:11px;margin-right:auto}
+  .logo{
+    width:38px;height:38px;border-radius:9px;flex:0 0 auto;
+    background:linear-gradient(135deg,var(--green),var(--green-dim));
+    display:grid;place-items:center;font-size:20px;
+    box-shadow:0 0 0 1px rgba(138,180,70,.4),0 4px 14px rgba(138,180,70,.25);
+  }
+  .brand h1{font-size:17px;margin:0;letter-spacing:.3px;font-weight:700}
+  .brand .sub{font-size:11px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
+
+  /* Key bar */
+  .keybar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .keybar input{
+    background:var(--bg);border:1px solid var(--line2);color:var(--txt);
+    padding:8px 10px;border-radius:6px;width:210px;font-size:13px;outline:none;
+    transition:border-color .15s;
+  }
+  .keybar input:focus{border-color:var(--green-dim)}
+  .keystatus{font-size:11px;display:flex;align-items:center;gap:5px;color:var(--muted)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);box-shadow:0 0 6px transparent}
+  .dot.ok{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .dot.bad{background:var(--danger);box-shadow:0 0 8px var(--danger)}
+
+  .btn{
+    background:var(--panel2);border:1px solid var(--line2);color:var(--txt);
+    padding:8px 13px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;
+    transition:all .15s;white-space:nowrap;
+  }
+  .btn:hover{border-color:var(--green-dim);background:#232a34}
+  .btn.primary{background:linear-gradient(180deg,var(--green),var(--green-dim));border-color:var(--green-dim);color:#0c1206}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn.ghost{background:transparent}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+
+  /* Layout */
+  .grid{display:grid;grid-template-columns:320px 1fr;gap:18px;margin-top:20px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius)}
+  .panel .phead{padding:12px 14px;border-bottom:1px solid var(--line);font-weight:700;font-size:12px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px}
+  .panel .pbody{padding:14px}
+
+  label.fld{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 5px}
+  .field{margin-bottom:15px}
+  select,.txtin{
+    width:100%;background:var(--bg);border:1px solid var(--line2);color:var(--txt);
+    padding:9px 10px;border-radius:6px;font-size:13px;outline:none;
+  }
+  select:focus,.txtin:focus{border-color:var(--green-dim)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+  /* Weapon combobox */
+  .combo{position:relative}
+  .combo-list{
+    position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:30;
+    background:var(--panel2);border:1px solid var(--line2);border-radius:8px;
+    max-height:340px;overflow-y:auto;box-shadow:0 12px 30px rgba(0,0,0,.5);display:none;
+  }
+  .combo-list.open{display:block}
+  .combo-group{padding:6px 11px;font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--green);background:var(--bg2);position:sticky;top:0}
+  .combo-item{padding:8px 11px;display:flex;align-items:center;gap:10px;cursor:pointer;border-top:1px solid var(--line)}
+  .combo-item:hover,.combo-item.active{background:var(--green-glow)}
+  .combo-item img{width:26px;height:26px;object-fit:contain;flex:0 0 auto}
+  .combo-item .ci-name{flex:1;font-size:13px}
+  .combo-item .ci-price{font-size:11px;color:var(--muted)}
+  .combo-empty{padding:14px;color:var(--muted);font-size:12px;text-align:center}
+
+  .selected-weapon{display:flex;align-items:center;gap:12px;padding:11px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;margin-bottom:14px}
+  .selected-weapon img{width:44px;height:44px;object-fit:contain}
+  .selected-weapon .sw-name{font-weight:700}
+  .selected-weapon .sw-meta{font-size:11px;color:var(--muted)}
+
+  .hint{font-size:11px;color:var(--faint);margin-top:6px;line-height:1.4}
+
+  /* Results */
+  .results-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;min-width:120px}
+  .stat .s-label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+  .stat .s-val{font-size:18px;font-weight:700;margin-top:2px}
+  .stat .s-val.green{color:var(--green)}
+  .stat .s-val.amber{color:var(--amber)}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{
+    text-align:left;padding:8px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;
+    color:var(--muted);border-bottom:1px solid var(--line2);white-space:nowrap;cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel);
+  }
+  thead th:hover{color:var(--txt)}
+  thead th .arw{color:var(--green);font-size:10px}
+  tbody td{padding:7px 8px;border-bottom:1px solid var(--line)}
+  tbody tr:hover{background:var(--bg2)}
+  tbody tr.cheapest{background:linear-gradient(90deg,var(--green-glow),transparent)}
+  .price{font-weight:700;font-variant-numeric:tabular-nums}
+  .price.good{color:var(--green)}
+  .num{font-variant-numeric:tabular-nums;color:var(--muted)}
+
+  .chip{display:inline-flex;align-items:center;gap:4px;background:var(--panel2);border:1px solid var(--line2);border-radius:20px;padding:2px 9px;font-size:11px;margin:2px 3px 2px 0;white-space:nowrap;cursor:help;transition:border-color .12s}
+  .chip:hover{border-color:var(--green-dim)}
+  .chip b{color:var(--amber);font-weight:700}
+  .rar{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .rar.yellow{background:var(--y);box-shadow:0 0 6px var(--y)}
+  .rar.orange{background:var(--o);box-shadow:0 0 6px var(--o)}
+  .rar.red{background:var(--r);box-shadow:0 0 6px var(--r)}
+  .rar.none{background:var(--faint)}
+
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
+  .img-col{width:72px;text-align:center;padding-left:10px;padding-right:6px}
+  .row-img{width:60px;height:60px;object-fit:contain;vertical-align:middle;filter:drop-shadow(0 1px 3px rgba(0,0,0,.55))}
+  .bonus-tip{position:fixed;z-index:200;max-width:270px;background:var(--panel2);border:1px solid var(--line2);border-radius:8px;padding:9px 12px;box-shadow:0 12px 34px rgba(0,0,0,.6);pointer-events:none;font-size:12px;line-height:1.45}
+  .bonus-tip .bt-title{font-weight:700;color:var(--txt);margin-bottom:3px}
+  .bonus-tip .bt-title span{color:var(--amber)}
+  .bonus-tip .bt-desc{color:var(--muted);white-space:pre-line}
+  .num.has-tip{cursor:help;text-decoration:underline dotted var(--faint);text-underline-offset:3px}
+  .num.has-tip:hover{color:var(--txt);text-decoration-color:var(--green-dim)}
+
+  .empty{padding:60px 20px;text-align:center;color:var(--muted)}
+  .empty .big{font-size:42px;margin-bottom:10px;opacity:.5}
+  .empty h3{margin:0 0 6px;color:var(--txt);font-weight:600}
+
+  .spinner{width:34px;height:34px;border:3px solid var(--line2);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line2);padding:11px 18px;border-radius:8px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.6);z-index:100;display:none;max-width:90vw}
+  .toast.show{display:block;animation:rise .3s}
+  .toast.err{border-color:var(--danger);color:#ffb4a8}
+  @keyframes rise{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+
+  .footer{margin-top:30px;padding-top:16px;border-top:1px solid var(--line);font-size:11px;color:var(--faint);text-align:center;line-height:1.6}
+  code.k{background:var(--bg2);padding:1px 5px;border-radius:4px;color:var(--green);font-size:11px}
+
+  .toplinks{display:flex;gap:10px;font-size:12px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-inner">
+    <div class="brand">
+      <div class="logo">⚔️</div>
+      <div>
+        <h1>Weapons Finder</h1>
+        <div class="sub">Torn Live Weapon Market Browser</div>
+      </div>
+    </div>
+    <div class="keybar">
+      <span class="keystatus"><span class="dot" id="keyDot"></span><span id="keyLabel">No key</span></span>
+      <input type="password" id="apiKey" placeholder="Public API key" autocomplete="off" spellcheck="false">
+      <button class="btn" id="saveKey">Save</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+
+    <!-- Sidebar: search + filters -->
+    <div>
+      <div class="panel" style="margin-bottom:18px">
+        <div class="phead">🎯 Find a Weapon</div>
+        <div class="pbody">
+          <button class="btn ghost" id="clearSearch" style="width:100%;margin-bottom:14px">Clear Search Fields</button>
+          <div class="field">
+            <label class="fld" for="slotFilter">Weapon slot</label>
+            <select id="slotFilter"><option value="">All slots</option></select>
+          </div>
+          <div class="field">
+            <label class="fld" for="typeFilter">Weapon type</label>
+            <select id="typeFilter"><option value="">All types</option></select>
+          </div>
+          <div class="field combo" id="combo">
+            <label class="fld" for="weaponSearch">Weapon</label>
+            <input class="txtin" id="weaponSearch" placeholder="Search weapons…" autocomplete="off">
+            <div class="combo-list" id="comboList"></div>
+          </div>
+          <div id="selWrap"></div>
+          <button class="btn primary" id="searchBtn" style="width:100%" disabled>Search live listings</button>
+          <div class="hint" id="catalogHint">Loading weapon catalog…</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="phead">🧪 Refine Results</div>
+        <div class="pbody">
+          <div class="field">
+            <label class="fld" for="bonusFilter">Rank-war bonus <span style="color:var(--faint)">(server-side)</span></label>
+            <select id="bonusFilter" disabled><option value="">Any bonus</option></select>
+            <div class="hint" id="bonusHint">Pick a weapon to see its available bonuses.</div>
+          </div>
+          <div class="field">
+            <label class="fld" for="bonus2">Also must have <span style="color:var(--faint)">(client-side)</span></label>
+            <select id="bonus2" disabled><option value="">— any —</option></select>
+          </div>
+          <div class="field">
+            <label class="fld" for="minBonusVal">Min bonus value %</label>
+            <input class="txtin" id="minBonusVal" type="number" min="0" placeholder="e.g. 25">
+          </div>
+          <div class="row2 field">
+            <div>
+              <label class="fld" for="maxPrice">Max price</label>
+              <input class="txtin" id="maxPrice" type="number" min="0" placeholder="any">
+            </div>
+            <div>
+              <label class="fld" for="minDmg">Min damage</label>
+              <input class="txtin" id="minDmg" type="number" min="0" placeholder="any">
+            </div>
+          </div>
+          <div class="field">
+            <label class="fld" for="rarityFilter">Rarity</label>
+            <select id="rarityFilter">
+              <option value="">Any rarity</option>
+              <option value="yellow">🟡 Yellow</option>
+              <option value="orange">🟠 Orange</option>
+              <option value="red">🔴 Red</option>
+              <option value="__none">Standard (no rarity)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main: results -->
+    <div>
+      <div id="resultsHead" class="results-head" style="display:none"></div>
+      <div id="results"></div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    Data via the <b>Torn API v2</b> Item Market endpoint · <code class="k">/market/{id}/itemmarket</code> · your key is stored only in this browser (localStorage) and sent only to <code class="k">api.torn.com</code>.<br>
+    Not affiliated with Torn. Listings reflect the game's cached market data.
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+const API = "https://api.torn.com/v2";
+const COMMENT = "WeaponsFinder";
+const LS_KEY = "am_apikey";
+const LS_CAT = "am_weapon_catalog_v3";
+const LS_CAT_TS = "am_weapon_catalog_ts_v3";
+const LS_OBS = "am_observed_bonuses_v1";
+const LS_PREFS = "am_search_prefs_v1";
+const CAT_TTL = 1000*60*60*24*7; // 7 days
+
+// Which rank-war bonuses can appear on each weapon type.
+// Authoritative Torn weapon-bonus table (mapped to the API's sub_type values + exact bonus spellings).
+// Mechanical currently has none; Temporary weapons carry no rank-war bonuses.
+// This is a seed — any bonus actually seen in live listings is merged in per type (see observedByType),
+// so newly-added game bonuses can never be hidden.
+const BONUS_BY_TYPE = {"Clubbing":["Crusher","Disarm","Empower","Frenzy","Fury","Home run","Motivation","Plunder","Powerful","Rage","Roshambo","Slow","Stun","Wind-up"],"Heavy artillery":["Cripple","Finale","Paralyze","Powerful","Specialist","Stricken","Stun","Warlord"],"Machine gun":["Conserve","Deadeye","Penetrate","Puncture","Smurf","Specialist","Suppress","Warlord"],"Mechanical":[],"Piercing":["Achilles","Assassinate","Backstab","Bleed","Cupid","Deadeye","Disarm","Empower","Eviscerate","Frenzy","Fury","Irradiate","Penetrate","Plunder","Puncture","Rage","Slow","Weaken","Wind-up","Wither"],"Pistol":["Achilles","Assassinate","Cupid","Deadeye","Disarm","Double Tap","Execute","Expose","Motivation","Quicken","Specialist","Throttle","Wither"],"Rifle":["Achilles","Assassinate","Conserve","Cupid","Deadeye","Disarm","Expose","Focus","Penetrate","Powerful","Puncture","Specialist","Sure Shot","Throttle","Warlord","Weaken"],"Shotgun":["Achilles","Bleed","Blindside","Cripple","Cupid","Deadly","Eviscerate","Expose","Powerful","Specialist","Stun","Throttle","Warlord","Weaken"],"Slashing":["Berserk","Bleed","Bloodlust","Disarm","Double-edged","Empower","Eviscerate","Expose","Frenzy","Fury","Grace","Motivation","Parry","Plunder","Quicken","Rage","Throttle","Weaken","Wind-up"],"SMG":["Achilles","Comeback","Conserve","Cupid","Motivation","Powerful","Proficience","Quicken","Revitalize","Slow","Specialist","Throttle","Warlord","Wither"],"Temporary":[]};
+
+// What each rank-war bonus does (from the Torn weapon-bonus table). Falls back to the API's
+// per-listing description for anything not listed here.
+const BONUS_INFO = {"Achilles":"Increased Foot damage (%) (typical: 50–149%)","Assassinate":"Increased damage (%) on the first turn (typical: 50–148%)","Backstab":"Chance (%) of double damage when opponent is distracted (typical: 30–96%)","Berserk":"Increased Damage (%), Reduced Hit Chance (half%) (typical: 20–87%)","Bleed":"Chance at \"Bleed\" DOT effect, with damage ticks starting at 45% that of the damage dealt when proc occurs, and reducing to zero over 9 turns (typical: 20–67%)","Blindside":"Increased damage (%) if target has full life (typical: 25–96%)","Bloodlust":"Life regenerated by a (%) of damage dealt (typical: 10–17%)","Comeback":"Increased damage (%) while under 1/4 life (typical: 50–127%)","Conserve":"Increase (%) ammo conservation (typical: 25–49%)","Cripple":"Chance (%) to Cripple opponent reducing Dexterity by 25% (x3) (typical: 20–58%)","Crusher":"Increased Head damage (%) (typical: 50–133%)","Cupid":"Increased Heart damage (%) (typical: 50–157%)","Deadeye":"Increased Critical hit damage (%) (typical: 25–123%)","Deadly":"Chance of a \"Deadly\" hit (+500% damage) (typical: 2–10%)","Disarm":"Disables opponents weapon for (X) turns upon hitting their hand or arm. Note: this will not work on the first turn of an attacking fight (typical: 3–15)","Double-edged":"Chance (%) of double damage at the cost of self injury (typical: 10–32%)","Double Tap":"Chance at hitting twice in a single turn (typical: 15–54%)","Empower":"Increased Strength while using the weapon (%) (typical: 50–206%)","Eviscerate":"Opponent receives extra damage (%) under this effect (typical: 15–34%)","Execute":"Instant defeat a target upon a damaging hit when opponent is below (%) life (typical: 15–29%)","Expose":"Increased critical hit rate (%) (typical: 7–21%)","Finale":"Increased damage (%) for every turn the weapon is not used (typical: 10–17%)","Focus":"Hit Chance increase (%) for every successive miss (typical: 15–32%)","Frenzy":"(%) Increase to Damage and Accuracy on each successive hit (typical: 5–14%)","Fury":"Chance (%) of hitting twice in a single turn (typical: 10–34%)","Grace":"Increased Hit Chance (%), Reduced Damage (half%) (typical: 20–66%)","Home run":"Chance (%) to deflect incoming temporary items (typical: 50–93%)","Irradiate":"Apply 1-3 hours radiation poisoning when used for the finishing hit (typical: 100%)","Motivation":"Chance (%) to increase all stats by 10% (up to 5 of these may stack) (typical: 15–35%)","Paralyze":"Adds 300 seconds ‘Paralyzed’ effect (50% chance of missing turns) (typical: 5–18%)","Parry":"(%) Chance to block incoming melee attacks (typical: 50–92%)","Penetrate":"Ignores (%) of enemy armor mitigation (typical: 25–49%)","Plunder":"Increase (%) to money mugged when used for finishing hit (typical: 20–49%)","Powerful":"Increased Damage (%) (typical: 15–49%)","Proficience":"Increase XP (%) gained when used for the finishing hit (typical: 20–59%)","Puncture":"Chance (%) of ignoring armor (typical: 20–57%)","Quicken":"Increased Speed while using the weapon (%) (typical: 50–219%)","Rage":"Chance (%) at hitting 2-8 times in a single turn (typical: 4–18%)","Revitalize":"Chance (%) of restoring the energy spent attacking, when used for the finishing hit (typical: 10–24%)","Roshambo":"Increased Groin damage (%) (typical: 50–132%)","Slow":"Chance (%) to Slow opponent reducing Speed by 25% (x3) (typical: 20–64%)","Smurf":"(%) damage increase for each level under an opponent (typical: 1%–4%)","Specialist":"Increased Damage (%), weapon is limited to a single clip (typical: 20–59%)","Stricken":"(%) Increased hospital time upon final hit (typical: 30%–96%)","Stun":"Chance (%) to cause opponent to miss next turn (typical: 10–40%)","Suppress":"(%) chance to Suppress opponent causing 25% chance to miss future turns (typical: 25–49%)","Sure Shot":"Chance (%) at a guaranteed hit (typical: 3–11%)","Throttle":"Increased Throat damage (%) (typical: 50–170%)","Warlord":"Increases respect gained (%) (typical: 15–38%)","Weaken":"Chance (%) to Weaken opponent reducing Defense by 25% (x3) (typical: 20–63%)","Wind-up":"Increased damage (%) after spending a turn to wind up the weapon (typical: 125–221%)","Wither":"Chance (%) to Wither opponent reducing Strength by 25% (x3) (typical: 20–63%)"};
+
+// ---------- state ----------
+let apiKey = "";
+let catalog = [];          // [{id,name,sub_type,image,market_price,circulation}]
+let currentWeapon = null;  // selected catalog entry
+let listings = [];         // raw listings for current weapon
+let usedBonusQuery = "";    // bonus used in last API query
+let sortKey = "price", sortDir = 1;
+let observedByType = {};    // {sub_type: [bonus titles seen in live listings]}
+let slotTypes = {};         // {slot: [sub_types]} derived from the catalog (Primary/Secondary/Melee/Temporary)
+let prefsRestored = false;  // restore saved search criteria only once per load
+let restoring = false;      // suppress prefs saving while we re-apply them
+
+// ---------- dom ----------
+const $ = id => document.getElementById(id);
+const els = {
+  apiKey:$("apiKey"), saveKey:$("saveKey"), keyDot:$("keyDot"), keyLabel:$("keyLabel"),
+  slotFilter:$("slotFilter"), typeFilter:$("typeFilter"), weaponSearch:$("weaponSearch"), comboList:$("comboList"),
+  combo:$("combo"), selWrap:$("selWrap"), searchBtn:$("searchBtn"), catalogHint:$("catalogHint"),
+  bonusFilter:$("bonusFilter"), bonus2:$("bonus2"), bonusHint:$("bonusHint"), minBonusVal:$("minBonusVal"),
+  maxPrice:$("maxPrice"), minDmg:$("minDmg"), rarityFilter:$("rarityFilter"),
+  clearSearch:$("clearSearch"),
+  resultsHead:$("resultsHead"), results:$("results"), toast:$("toast")
+};
+
+// ---------- helpers ----------
+const fmt = n => n==null?"–":Number(n).toLocaleString("en-US");
+const round2 = n => n==null?"–":(Math.round(Number(n)*100)/100);
+const money = n => n==null?"–":"$"+Number(n).toLocaleString("en-US");
+function toast(msg,isErr){
+  els.toast.textContent = msg;
+  els.toast.className = "toast show"+(isErr?" err":"");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>els.toast.className="toast", isErr?5000:2600);
+}
+function setKeyStatus(state,label){
+  els.keyDot.className = "dot"+(state?(" "+state):"");
+  els.keyLabel.textContent = label;
+}
+async function apiGet(path, params){
+  const u = new URL(API+path);
+  const p = Object.assign({key:apiKey, comment:COMMENT}, params||{});
+  Object.entries(p).forEach(([k,v])=>{ if(v!==""&&v!=null) u.searchParams.set(k,v); });
+  let res;
+  try{ res = await fetch(u.toString()); }
+  catch(e){ throw new Error("Network error — check your connection."); }
+  let data;
+  try{ data = await res.json(); }
+  catch(e){ throw new Error("Bad response from Torn API ("+res.status+")."); }
+  if(data && data.error){
+    const c = data.error.code, m = data.error.error;
+    if(c===2) throw new Error("Incorrect API key.");
+    if(c===5) throw new Error("Too many requests — slow down a moment.");
+    if(c===18) throw new Error("API key is paused/disabled in Torn settings.");
+    throw new Error("Torn API error "+c+": "+m);
+  }
+  return data;
+}
+
+// ---------- key ----------
+function loadKey(){
+  apiKey = localStorage.getItem(LS_KEY) || "";
+  if(apiKey){
+    els.apiKey.value = apiKey;
+    setKeyStatus("ok","Key saved");
+  } else {
+    setKeyStatus("","No key");
+  }
+}
+els.saveKey.addEventListener("click", saveKey);
+els.apiKey.addEventListener("keydown", e=>{ if(e.key==="Enter") saveKey(); });
+async function saveKey(){
+  const k = els.apiKey.value.trim();
+  if(!k){ toast("Enter a public API key first.",true); return; }
+  apiKey = k;
+  localStorage.setItem(LS_KEY,k);
+  setKeyStatus("ok","Key saved");
+  toast("Key saved to this browser.");
+  if(!listings.length) showInitialEmpty();
+  await ensureCatalog(true);
+}
+
+// ---------- catalog ----------
+async function ensureCatalog(force){
+  if(!apiKey){ els.catalogHint.textContent = "Enter your public API key to load the weapon list."; return; }
+  // try cache
+  if(!force){
+    try{
+      const ts = +localStorage.getItem(LS_CAT_TS)||0;
+      const raw = localStorage.getItem(LS_CAT);
+      if(raw && (Date.now()-ts)<CAT_TTL){
+        catalog = JSON.parse(raw);
+        onCatalogReady(true);
+        return;
+      }
+    }catch(e){}
+  }
+  els.catalogHint.textContent = "Loading weapon catalog…";
+  try{
+    const data = await apiGet("/torn/items",{cat:"Weapon"});
+    const items = (data && data.items) || [];
+    catalog = items.map(it=>({
+      id: it.id,
+      name: it.name,
+      type: it.type || "Weapon",
+      sub_type: it.sub_type || "Other",
+      slot: (it.details && it.details.category) ? it.details.category : null,
+      image: it.image || ("https://www.torn.com/images/items/"+it.id+"/large.png"),
+      market_price: it.value ? (it.value.market_price ?? null) : null,
+      circulation: it.circulation ?? null,
+      baseDmg: (it.details && it.details.base_stats) ? it.details.base_stats.damage : null,
+      baseAcc: (it.details && it.details.base_stats) ? it.details.base_stats.accuracy : null,
+      tradable: it.is_tradable !== false
+    })).filter(w=>w.tradable)
+      .sort((a,b)=>a.name.localeCompare(b.name));
+    try{
+      localStorage.setItem(LS_CAT, JSON.stringify(catalog));
+      localStorage.setItem(LS_CAT_TS, Date.now());
+    }catch(e){ /* quota — fine, keep in memory */ }
+    onCatalogReady(false);
+  }catch(e){
+    els.catalogHint.textContent = "⚠ "+e.message;
+    if(String(e.message).includes("key")) setKeyStatus("bad","Bad key");
+  }
+}
+const SLOT_ORDER = ["Primary","Secondary","Melee","Temporary"];
+function onCatalogReady(fromCache){
+  // drop temporary weapons — not relevant to this finder
+  catalog = catalog.filter(w=> w.sub_type!=="Temporary" && w.slot!=="Temporary");
+  // derive slot -> weapon types from the catalog (authoritative per-weapon category)
+  slotTypes = {};
+  catalog.forEach(w=>{ if(w.slot){ (slotTypes[w.slot] = slotTypes[w.slot] || new Set()).add(w.sub_type); } });
+  Object.keys(slotTypes).forEach(s=>{ slotTypes[s] = [...slotTypes[s]].sort(); });
+  // populate the slot filter
+  const slots = Object.keys(slotTypes).sort((a,b)=>{
+    const ia=SLOT_ORDER.indexOf(a), ib=SLOT_ORDER.indexOf(b);
+    return (ia<0?99:ia)-(ib<0?99:ib);
+  });
+  els.slotFilter.innerHTML = '<option value="">All slots</option>' +
+    slots.map(s=>`<option value="${s}">${s}</option>`).join("");
+  // populate the type filter for the current slot (defaults to all)
+  populateTypeFilter(els.slotFilter.value);
+  els.catalogHint.innerHTML = `${catalog.length} tradable weapons loaded${fromCache?" (cached)":""}. `+
+    `<a href="#" id="refreshCat">refresh</a>`;
+  const rc = $("refreshCat");
+  if(rc) rc.addEventListener("click", e=>{e.preventDefault(); ensureCatalog(true);});
+  restorePrefs();   // re-apply the user's last search (once) now that the catalog exists
+}
+// weapon-type options relevant to the chosen slot (all types if no slot chosen)
+function populateTypeFilter(slot){
+  const prev = els.typeFilter.value;
+  const types = (slot && slotTypes[slot]) ? slotTypes[slot]
+              : [...new Set(catalog.map(w=>w.sub_type))].sort();
+  els.typeFilter.innerHTML = '<option value="">All types</option>' +
+    types.map(t=>`<option value="${t}">${t}</option>`).join("");
+  els.typeFilter.value = types.includes(prev) ? prev : "";
+}
+
+// ---------- weapon combobox ----------
+let comboMatches = [], comboIdx = -1;
+function renderCombo(){
+  const q = els.weaponSearch.value.trim().toLowerCase();
+  const type = els.typeFilter.value;
+  const slot = els.slotFilter.value;
+  let list = catalog.filter(w=> (!slot || w.slot===slot) && (!type || w.sub_type===type) && (!q || w.name.toLowerCase().includes(q)) );
+  comboMatches = list.slice(0,120);
+  if(!catalog.length){ els.comboList.innerHTML = '<div class="combo-empty">Catalog not loaded yet.</div>'; return; }
+  if(!comboMatches.length){ els.comboList.innerHTML = '<div class="combo-empty">No weapons match.</div>'; return; }
+  // group by sub_type
+  const groups = {};
+  comboMatches.forEach(w=>{(groups[w.sub_type]=groups[w.sub_type]||[]).push(w);});
+  let html = "";
+  Object.keys(groups).sort().forEach(g=>{
+    html += `<div class="combo-group">${g}</div>`;
+    groups[g].forEach(w=>{
+      const gi = comboMatches.indexOf(w);
+      html += `<div class="combo-item" data-i="${gi}">
+        <img src="${w.image}" loading="lazy" onerror="this.style.visibility='hidden'">
+        <span class="ci-name">${w.name}</span>
+        <span class="ci-price">${w.market_price?money(w.market_price):""}</span>
+      </div>`;
+    });
+  });
+  els.comboList.innerHTML = html;
+  [...els.comboList.querySelectorAll(".combo-item")].forEach(el=>{
+    el.addEventListener("mousedown", ev=>{ ev.preventDefault(); pickWeapon(comboMatches[+el.dataset.i]); });
+  });
+}
+function openCombo(){ renderCombo(); els.comboList.classList.add("open"); }
+function closeCombo(){ els.comboList.classList.remove("open"); comboIdx=-1; }
+els.weaponSearch.addEventListener("focus", ()=>{
+  // clear the locked-in weapon name so the full list shows and a different weapon can be picked
+  if(currentWeapon && els.weaponSearch.value === currentWeapon.name) els.weaponSearch.value = "";
+  openCombo();
+});
+els.weaponSearch.addEventListener("blur", ()=>{
+  // if they left without choosing a new weapon, put the selected name back
+  if(currentWeapon && els.weaponSearch.value.trim() === "") els.weaponSearch.value = currentWeapon.name;
+});
+els.weaponSearch.addEventListener("input", ()=>{ comboIdx=-1; openCombo(); });
+function weaponMatchesFilters(w){
+  const slot = els.slotFilter.value, type = els.typeFilter.value;
+  return (!slot || w.slot===slot) && (!type || w.sub_type===type);
+}
+function clearSelectedWeapon(){
+  currentWeapon = null;
+  els.weaponSearch.value = "";
+  els.selWrap.innerHTML = "";
+  els.searchBtn.disabled = true;
+}
+els.slotFilter.addEventListener("change", ()=>{
+  populateTypeFilter(els.slotFilter.value);         // narrow weapon types to this slot
+  if(currentWeapon && !weaponMatchesFilters(currentWeapon)) clearSelectedWeapon();
+  populateBonuses();                                // rescope bonuses to the slot
+  if(els.comboList.classList.contains("open")) renderCombo();
+  savePrefs();
+});
+els.typeFilter.addEventListener("change", ()=>{
+  if(currentWeapon && !weaponMatchesFilters(currentWeapon)) clearSelectedWeapon();
+  populateBonuses();                                // rescope bonuses to the type
+  if(document.activeElement===els.weaponSearch||els.comboList.classList.contains("open")) renderCombo();
+  savePrefs();
+});
+els.weaponSearch.addEventListener("keydown", e=>{
+  if(!els.comboList.classList.contains("open")) return;
+  const items = [...els.comboList.querySelectorAll(".combo-item")];
+  if(e.key==="ArrowDown"){ e.preventDefault(); comboIdx=Math.min(comboIdx+1,items.length-1); }
+  else if(e.key==="ArrowUp"){ e.preventDefault(); comboIdx=Math.max(comboIdx-1,0); }
+  else if(e.key==="Enter"){ if(comboIdx>=0&&items[comboIdx]){ e.preventDefault(); pickWeapon(comboMatches[+items[comboIdx].dataset.i]); } return; }
+  else return;
+  items.forEach((it,i)=>it.classList.toggle("active",i===comboIdx));
+  if(items[comboIdx]) items[comboIdx].scrollIntoView({block:"nearest"});
+});
+document.addEventListener("mousedown", e=>{ if(!els.combo.contains(e.target)) closeCombo(); });
+
+function pickWeapon(w){
+  if(!w) return;
+  currentWeapon = w;
+  els.weaponSearch.value = w.name;
+  closeCombo();
+  els.selWrap.innerHTML = `<div class="selected-weapon">
+    <img src="${w.image}" onerror="this.style.visibility='hidden'">
+    <div>
+      <div class="sw-name">${w.name}</div>
+      <div class="sw-meta">${w.sub_type} · avg ${w.market_price?money(w.market_price):"?"} · ${w.circulation!=null?fmt(w.circulation)+" in circ.":""}</div>
+    </div>
+  </div>`;
+  els.searchBtn.disabled = false;
+  populateBonuses();
+  savePrefs();
+}
+
+// ---------- search listings ----------
+els.searchBtn.addEventListener("click", runSearch);
+els.bonusFilter.addEventListener("change", ()=>{ savePrefs(); if(currentWeapon) runSearch(); });
+async function runSearch(){
+  if(!apiKey){ toast("Save your API key first.",true); return; }
+  if(!currentWeapon){ toast("Pick a weapon first.",true); return; }
+  const bonus = els.bonusFilter.value;
+  usedBonusQuery = bonus;
+  savePrefs();
+  showLoading();
+  try{
+    const params = {limit:100};
+    if(bonus) params.bonus = bonus;
+    const data = await apiGet("/market/"+currentWeapon.id+"/itemmarket", params);
+    const im = data && data.itemmarket;
+    listings = (im && im.listings) || [];
+    // keep only non-stackable (weapons w/ details)
+    listings = listings.map((l,i)=>({
+      idx:i,
+      price:l.price,
+      amount:l.amount,
+      d: l.item_details || null
+    }));
+    currentWeapon._cache = im ? im.cache_timestamp : null;
+    // self-correct: learn any bonuses actually present for this weapon type
+    const seen = new Set();
+    listings.forEach(r=>{ if(r.d && r.d.bonuses) r.d.bonuses.forEach(b=>seen.add(b.title)); });
+    if(recordObserved(currentWeapon.sub_type, [...seen])) populateBonuses();
+    renderResults();
+  }catch(e){
+    els.results.innerHTML = `<div class="empty"><div class="big">⚠️</div><h3>Couldn't load listings</h3><div>${e.message}</div></div>`;
+    els.resultsHead.style.display="none";
+    if(String(e.message).includes("key")) setKeyStatus("bad","Bad key");
+    toast(e.message,true);
+  }
+}
+function showInitialEmpty(){
+  els.resultsHead.style.display = "none";
+  const msg = apiKey
+    ? "Choose a weapon on the left and hit <b>Search live listings</b>, then filter by rank-war bonus, price and stats."
+    : "Enter your Torn <b>public</b> API key above, then choose a weapon and filter by rank-war bonus, price and stats.";
+  els.results.innerHTML = `<div class="empty">
+    <div class="big">🗡️</div>
+    <h3>Pick a weapon to browse the live market</h3>
+    <div>${msg}</div>
+  </div>`;
+}
+function showLoading(){
+  els.resultsHead.style.display="none";
+  els.results.innerHTML = `<div class="empty"><div class="spinner"></div><h3>Fetching live listings…</h3><div>${currentWeapon.name}${usedBonusQuery?" · "+usedBonusQuery:""}</div></div>`;
+}
+
+// ---------- filtering + render ----------
+function applyFilters(rows){
+  const b2 = els.bonus2.value;
+  const minBV = parseFloat(els.minBonusVal.value);
+  const maxP = parseFloat(els.maxPrice.value);
+  const minD = parseFloat(els.minDmg.value);
+  const rar = els.rarityFilter.value;
+  return rows.filter(r=>{
+    const d = r.d;
+    if(!isNaN(maxP) && r.price>maxP) return false;
+    if(!isNaN(minD)){ const dmg=d&&d.stats?d.stats.damage:null; if(dmg==null||dmg<minD) return false; }
+    if(rar){
+      const rr = d?d.rarity:null;
+      if(rar==="__none"){ if(rr) return false; }
+      else if(rr!==rar) return false;
+    }
+    if(b2){
+      const has = d&&d.bonuses ? d.bonuses.some(x=>x.title===b2) : false;
+      if(!has) return false;
+    }
+    if(!isNaN(minBV)){
+      const bs = d&&d.bonuses?d.bonuses:[];
+      // if a specific bonus context is set, check that one; else check any bonus meets threshold
+      let ref = null;
+      if(usedBonusQuery) ref = bs.find(x=>x.title===usedBonusQuery);
+      else if(b2) ref = bs.find(x=>x.title===b2);
+      const val = ref ? ref.value : (bs.length?Math.max(...bs.map(x=>x.value)):null);
+      if(val==null || val<minBV) return false;
+    }
+    return true;
+  });
+}
+function sortRows(rows){
+  const k=sortKey, dir=sortDir;
+  return rows.slice().sort((a,b)=>{
+    let va,vb;
+    if(k==="price"){va=a.price;vb=b.price;}
+    else if(k==="amount"){va=a.amount;vb=b.amount;}
+    else if(k==="dmg"){va=a.d&&a.d.stats?a.d.stats.damage??-1:-1;vb=b.d&&b.d.stats?b.d.stats.damage??-1:-1;}
+    else if(k==="acc"){va=a.d&&a.d.stats?a.d.stats.accuracy??-1:-1;vb=b.d&&b.d.stats?b.d.stats.accuracy??-1:-1;}
+    else if(k==="bonus"){va=topBonusVal(a.d);vb=topBonusVal(b.d);}
+    else {va=a.price;vb=b.price;}
+    return (va-vb)*dir;
+  });
+}
+function topBonusVal(d){ if(!d||!d.bonuses||!d.bonuses.length) return -1; return Math.max(...d.bonuses.map(x=>x.value)); }
+
+function bonusChips(d){
+  if(!d||!d.bonuses||!d.bonuses.length) return '<span style="color:var(--faint)">—</span>';
+  return d.bonuses.map(x=>{
+    const desc = (BONUS_INFO[x.title] || x.description || "").replace(/"/g,"&quot;");
+    const title = String(x.title||"").replace(/"/g,"&quot;");
+    return `<span class="chip" data-tip-title="${title} ${x.value}%" data-tip-body="${desc}">${x.title} <b>${x.value}%</b></span>`;
+  }).join("");
+}
+function rarDot(d){
+  const r = d?d.rarity:null;
+  const cls = r||"none";
+  return `<span class="rar ${cls}" title="${r?r+' rarity':'standard'}"></span>`;
+}
+
+function renderResults(){
+  const filtered = applyFilters(listings);
+  const rows = sortRows(filtered);
+  // header stats
+  const prices = rows.map(r=>r.price);
+  const min = prices.length?Math.min(...prices):null;
+  const cacheAge = currentWeapon._cache ? Math.max(0,Math.round((Date.now()/1000 - currentWeapon._cache)/60)) : null;
+  els.resultsHead.style.display="flex";
+  els.resultsHead.innerHTML = `
+    <div class="stat"><div class="s-label">Weapon</div><div class="s-val" style="font-size:15px">${currentWeapon.name}</div></div>
+    <div class="stat"><div class="s-label">Showing</div><div class="s-val">${rows.length}<span style="font-size:12px;color:var(--muted)"> / ${listings.length}</span></div></div>
+    <div class="stat"><div class="s-label">Cheapest match</div><div class="s-val green">${min!=null?money(min):"–"}</div></div>
+    ${cacheAge!=null?`<div style="margin-left:auto;align-self:center"><span class="hint">market data ~${cacheAge}m old</span></div>`:""}`;
+
+  if(!listings.length){
+    els.results.innerHTML = `<div class="empty"><div class="big">🕳️</div><h3>No live listings</h3><div>Nobody is selling ${currentWeapon.name}${usedBonusQuery?" with "+usedBonusQuery:""} right now.</div></div>`;
+    return;
+  }
+  if(!rows.length){
+    els.results.innerHTML = `<div class="empty"><div class="big">🔍</div><h3>No listings match your refinements</h3><div>Loosen the filters on the left.</div></div>`;
+    return;
+  }
+  // ranges across the shown listings, for the Dmg/Acc/Quality tooltips
+  const collect = f => rows.map(f).filter(v=>v!=null);
+  const rng = arr => arr.length ? `${round2(Math.min(...arr))}–${round2(Math.max(...arr))}` : "n/a";
+  const dmgRange = rng(collect(r=>r.d&&r.d.stats?r.d.stats.damage:null));
+  const accRange = rng(collect(r=>r.d&&r.d.stats?r.d.stats.accuracy:null));
+  const qRange   = rng(collect(r=>r.d&&r.d.stats?r.d.stats.quality:null));
+  const baseDmg = currentWeapon.baseDmg, baseAcc = currentWeapon.baseAcc;
+  // build one hoverable stat cell
+  const statCell = (val, title, body) =>
+    val==null ? `<td class="num">–</td>`
+              : `<td class="num has-tip" data-tip-title="${title}" data-tip-body="${body}">${round2(val)}</td>`;
+  const arw = k => sortKey===k?`<span class="arw">${sortDir>0?"▲":"▼"}</span>`:"";
+  const imgUrl = "https://www.torn.com/images/items/"+currentWeapon.id+"/large.png";
+  let html = `<div class="tablewrap"><table><thead><tr>
+    <th class="img-col"></th>
+    <th data-k="price">Price ${arw("price")}</th>
+    <th data-k="amount">Qty ${arw("amount")}</th>
+    <th>Rarity</th>
+    <th data-k="dmg">Dmg ${arw("dmg")}</th>
+    <th data-k="acc">Acc ${arw("acc")}</th>
+    <th>Quality</th>
+    <th data-k="bonus">Rank-war bonuses ${arw("bonus")}</th>
+  </tr></thead><tbody>`;
+  rows.forEach((r,i)=>{
+    const d=r.d, st=d&&d.stats?d.stats:{};
+    const cheap = r.price===min;
+    html += `<tr class="${cheap?'cheapest':''}">
+      <td class="img-col"><img class="row-img" src="${imgUrl}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
+      <td class="price ${cheap?'good':''}">${money(r.price)}</td>
+      <td class="num">${r.amount>1?"×"+r.amount:"1"}</td>
+      <td>${rarDot(d)}${d&&d.rarity?d.rarity:'<span style="color:var(--faint)">std</span>'}</td>
+      ${statCell(st.damage, "Damage", `This copy: ${round2(st.damage)}${st.quality!=null?` @ ${round2(st.quality)}% quality`:""}`+(baseDmg!=null?`\nWeapon base (100% quality): ${baseDmg}`:"")+`\nDamage rises with quality.\nIn these ${rows.length} listings: ${dmgRange}`)}
+      ${statCell(st.accuracy, "Accuracy", `This copy: ${round2(st.accuracy)}${st.quality!=null?` @ ${round2(st.quality)}% quality`:""}`+(baseAcc!=null?`\nWeapon base (100% quality): ${baseAcc}`:"")+`\nAccuracy rises with quality.\nIn these ${rows.length} listings: ${accRange}`)}
+      ${statCell(st.quality, "Quality", `This copy: ${round2(st.quality)}%\nPossible range: 0%–100%\nHigher quality → more damage & accuracy.\nIn these ${rows.length} listings: ${qRange}`)}
+      <td>${bonusChips(d)}</td>
+    </tr>`;
+  });
+  html += `</tbody></table></div>`;
+  els.results.innerHTML = html;
+  [...els.results.querySelectorAll("th[data-k]")].forEach(th=>{
+    th.addEventListener("click",()=>{
+      const k=th.dataset.k;
+      if(sortKey===k) sortDir=-sortDir; else {sortKey=k; sortDir = (k==="price")?1:-1;}
+      savePrefs();
+      renderResults();
+    });
+  });
+}
+
+// client-side refinement listeners (no re-fetch)
+["bonus2","minBonusVal","maxPrice","minDmg","rarityFilter"].forEach(id=>{
+  els[id].addEventListener("input", ()=>{ savePrefs(); if(listings.length) renderResults(); });
+  els[id].addEventListener("change", ()=>{ savePrefs(); if(listings.length) renderResults(); });
+});
+els.clearSearch.addEventListener("click", ()=>{
+  // weapon selection
+  currentWeapon = null;
+  els.weaponSearch.value = "";
+  els.slotFilter.value = "";
+  populateTypeFilter("");             // reset type options to all
+  els.typeFilter.value = "";
+  els.selWrap.innerHTML = "";
+  els.searchBtn.disabled = true;
+  closeCombo();
+  populateBonuses();                  // clears + disables both bonus dropdowns
+  // refinements
+  els.minBonusVal.value = ""; els.maxPrice.value = ""; els.minDmg.value = ""; els.rarityFilter.value = "";
+  // results
+  listings = [];
+  usedBonusQuery = "";
+  showInitialEmpty();
+  savePrefs();                          // don't restore a cleared search next time
+});
+
+// ---------- type-scoped bonus dropdowns ----------
+function loadObserved(){
+  try{ observedByType = JSON.parse(localStorage.getItem(LS_OBS)||"{}") || {}; }
+  catch(e){ observedByType = {}; }
+}
+function recordObserved(type, titles){
+  if(!type || !titles.length) return false;
+  const set = new Set(observedByType[type] || []);
+  let changed = false;
+  titles.forEach(t=>{ if(!set.has(t)){ set.add(t); changed = true; } });
+  if(changed){
+    observedByType[type] = [...set];
+    try{ localStorage.setItem(LS_OBS, JSON.stringify(observedByType)); }catch(e){}
+  }
+  return changed;
+}
+// bonuses a given weapon type can have = authoritative seed ∪ anything seen live
+function bonusesForType(type){
+  if(!type) return [];
+  const base = BONUS_BY_TYPE[type] || [];
+  const obs = observedByType[type] || [];
+  return [...new Set([...base, ...obs])].sort((a,b)=>a.localeCompare(b));
+}
+// bonuses relevant to the current selection: weapon > type > slot (union) > none
+function contextBonuses(){
+  if(currentWeapon) return { list: bonusesForType(currentWeapon.sub_type), label: currentWeapon.sub_type+" weapons" };
+  const type = els.typeFilter.value;
+  if(type) return { list: bonusesForType(type), label: type+" weapons" };
+  const slot = els.slotFilter.value;
+  if(slot && slotTypes[slot]){
+    const set = new Set();
+    slotTypes[slot].forEach(t=>bonusesForType(t).forEach(b=>set.add(b)));
+    return { list: [...set].sort((a,b)=>a.localeCompare(b)), label: slot+" weapons" };
+  }
+  return { list: [], label: null };
+}
+// populate both bonus selects for the current slot/type/weapon context
+function populateBonuses(){
+  const { list, label } = contextBonuses();
+  const prev1 = els.bonusFilter.value, prev2 = els.bonus2.value;
+  const opts = list.map(b=>`<option value="${b}">${b}</option>`).join("");
+  els.bonusFilter.innerHTML = '<option value="">Any bonus</option>' + opts;
+  els.bonus2.innerHTML = '<option value="">— any —</option>' + opts;
+  els.bonusFilter.value = list.includes(prev1) ? prev1 : "";
+  els.bonus2.value = list.includes(prev2) ? prev2 : "";
+  const hasCtx = !!label;
+  const none = hasCtx && list.length === 0;
+  els.bonusFilter.disabled = !hasCtx || none;
+  els.bonus2.disabled = !hasCtx || none;
+  if(!hasCtx){
+    els.bonusHint.textContent = "Pick a slot, type or weapon to see the available bonuses.";
+  } else if(none){
+    els.bonusHint.innerHTML = `<span style="color:var(--amber)">${label} carry no rank-war bonuses.</span>`;
+  } else {
+    els.bonusHint.textContent = `${list.length} bonuses possible on ${label} — queries the market for the cheapest carrying it.`;
+  }
+}
+
+// ---------- hover tooltip (bonuses + stat columns) ----------
+const infoTip = document.createElement("div");
+infoTip.className = "bonus-tip";
+infoTip.style.display = "none";
+document.body.appendChild(infoTip);
+function showInfoTip(el){
+  const title = el.dataset.tipTitle || "", body = el.dataset.tipBody || "";
+  infoTip.innerHTML = `<div class="bt-title">${title}</div>`+(body?`<div class="bt-desc">${body}</div>`:"");
+  infoTip.style.display = "block";
+  const r = el.getBoundingClientRect();
+  const tw = infoTip.offsetWidth, th = infoTip.offsetHeight;
+  let left = r.left + r.width/2 - tw/2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+  let top = r.top - th - 8;
+  if(top < 8) top = r.bottom + 8;   // flip below if no room above
+  infoTip.style.left = left+"px";
+  infoTip.style.top = top+"px";
+}
+els.results.addEventListener("mouseover", e=>{ const el = e.target.closest("[data-tip-title]"); if(el) showInfoTip(el); });
+els.results.addEventListener("mouseout", e=>{ if(e.target.closest("[data-tip-title]")) infoTip.style.display = "none"; });
+
+// ---------- remember last search criteria ----------
+function savePrefs(){
+  if(restoring) return;
+  try{
+    localStorage.setItem(LS_PREFS, JSON.stringify({
+      slot: els.slotFilter.value,
+      type: els.typeFilter.value,
+      weaponId: currentWeapon ? currentWeapon.id : null,
+      bonus: els.bonusFilter.value,
+      bonus2: els.bonus2.value,
+      minBonusVal: els.minBonusVal.value,
+      maxPrice: els.maxPrice.value,
+      minDmg: els.minDmg.value,
+      rarity: els.rarityFilter.value,
+      sortKey, sortDir
+    }));
+  }catch(e){}
+}
+function restorePrefs(){
+  if(prefsRestored) return;
+  prefsRestored = true;
+  let p; try{ p = JSON.parse(localStorage.getItem(LS_PREFS) || "null"); }catch(e){ p = null; }
+  if(!p) return;
+  restoring = true;
+  if(p.slot && [...els.slotFilter.options].some(o=>o.value===p.slot)){
+    els.slotFilter.value = p.slot;
+    populateTypeFilter(p.slot);           // narrow the type options before restoring the type
+  }
+  if(p.type && [...els.typeFilter.options].some(o=>o.value===p.type)) els.typeFilter.value = p.type;
+  if(p.sortKey){ sortKey = p.sortKey; sortDir = p.sortDir || 1; }
+  let weapon = null;
+  if(p.weaponId!=null) weapon = catalog.find(w=>w.id===p.weaponId) || null;
+  if(weapon) pickWeapon(weapon);   // sets currentWeapon, input, card, enables search, populates bonuses
+  populateBonuses();               // ensure bonus options match the restored slot/type/weapon context
+  const setSel = (sel,val)=>{ if(val && [...sel.options].some(o=>o.value===val)) sel.value = val; };
+  setSel(els.bonusFilter, p.bonus);
+  setSel(els.bonus2, p.bonus2);
+  setSel(els.rarityFilter, p.rarity);
+  els.minBonusVal.value = p.minBonusVal || "";
+  els.maxPrice.value = p.maxPrice || "";
+  els.minDmg.value = p.minDmg || "";
+  restoring = false;
+  // pick up right where they left off
+  if(weapon && apiKey) runSearch(); else savePrefs();
+}
+
+// ---------- init ----------
+loadObserved();
+populateBonuses();
+loadKey();
+showInitialEmpty();
+ensureCatalog(false);
+
+})();
+</script>
+</body>
+</html>
