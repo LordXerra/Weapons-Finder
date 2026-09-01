@@ -52,6 +52,10 @@
   }
   .brand h1{font-size:17px;margin:0;letter-spacing:.3px;font-weight:700}
   .brand .sub{font-size:11px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
+  .brand h1 .ver{font-size:11px;font-weight:600;color:var(--green);letter-spacing:.5px;vertical-align:middle;margin-left:4px}
+  .brand .credit{font-size:11px;color:var(--faint);margin-top:3px}
+  .brand .credit a{color:var(--muted);text-decoration:none;border-bottom:1px dotted var(--line2)}
+  .brand .credit a:hover{color:var(--green)}
 
   /* Key bar */
   .keybar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -105,6 +109,12 @@
   .combo-group{padding:6px 11px;font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--green);background:var(--bg2);position:sticky;top:0}
   .combo-item{padding:8px 11px;display:flex;align-items:center;gap:10px;cursor:pointer;border-top:1px solid var(--line)}
   .combo-item:hover,.combo-item.active{background:var(--green-glow)}
+  .combo-item.incompatible{opacity:.38}
+  .combo-item.incompatible .ci-price::after{content:"✕";color:var(--amber);margin-left:6px;font-weight:700}
+  tbody tr.pickrow{cursor:pointer}
+  tbody tr.pickrow:hover{background:var(--green-glow)}
+  .mkt-link{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);text-decoration:none;border:1px solid var(--line2);border-radius:6px;padding:3px 8px;white-space:nowrap}
+  .mkt-link:hover{color:var(--green);border-color:var(--green-dim)}
   .combo-item img{width:26px;height:26px;object-fit:contain;flex:0 0 auto}
   .combo-item .ci-name{flex:1;font-size:13px}
   .combo-item .ci-price{font-size:11px;color:var(--muted)}
@@ -124,6 +134,27 @@
   .stat .s-val{font-size:18px;font-weight:700;margin-top:2px}
   .stat .s-val.green{color:var(--green)}
   .stat .s-val.amber{color:var(--amber)}
+
+  /* local price-history panel */
+  #priceHistory{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:14px;overflow:hidden}
+  .ph-head{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--line);background:var(--bg2)}
+  .ph-title{font-size:12px;font-weight:600;letter-spacing:.3px}
+  .ph-bonus{color:var(--green)}
+  .ph-clear{font-size:11px;color:var(--faint);text-decoration:none;border-bottom:1px dotted var(--line2)}
+  .ph-clear:hover{color:var(--amber)}
+  .ph-body{padding:12px 14px}
+  .ph-tiles{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .ph-tile{flex:1;min-width:110px;background:var(--bg2);border:1px solid var(--line);border-radius:7px;padding:8px 11px}
+  .ph-l{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+  .ph-v{font-size:16px;font-weight:700;margin-top:2px}
+  .ph-v.green{color:var(--green)}
+  .ph-sub{font-size:11px;font-weight:400;color:var(--muted)}
+  .ph-chart{width:100%;overflow:hidden}
+  .spark{display:block;width:100%;height:46px}
+  .ph-vs{margin-top:8px;font-size:12px;color:var(--muted)}
+  .ph-vs .green{color:var(--green);font-weight:600}
+  .ph-vs .amber{color:var(--amber);font-weight:600}
+  .ph-note{margin-top:8px;font-size:11px;color:var(--faint);line-height:1.5}
 
   table{width:100%;border-collapse:collapse;font-size:13px}
   thead th{
@@ -183,8 +214,9 @@
     <div class="brand">
       <div class="logo">⚔️</div>
       <div>
-        <h1>Weapons Finder</h1>
+        <h1>Weapons Finder <span class="ver">V1.01</span></h1>
         <div class="sub">Torn Live Weapon Market Browser</div>
+        <div class="credit">Created by Xerra (<a href="https://www.torn.com/profiles.php?XID=2775419" target="_blank" rel="noopener">2775419</a>) &amp; Pickaxe1977 (<a href="https://www.torn.com/profiles.php?XID=2935003" target="_blank" rel="noopener">2935003</a>)</div>
       </div>
     </div>
     <div class="keybar">
@@ -266,6 +298,7 @@
     <!-- Main: results -->
     <div>
       <div id="resultsHead" class="results-head" style="display:none"></div>
+      <div id="priceHistory" style="display:none"></div>
       <div id="results"></div>
     </div>
 
@@ -290,7 +323,9 @@ const LS_CAT = "am_weapon_catalog_v3";
 const LS_CAT_TS = "am_weapon_catalog_ts_v3";
 const LS_OBS = "am_observed_bonuses_v1";
 const LS_PREFS = "am_search_prefs_v1";
+const LS_HIST = "am_price_history_v1";
 const CAT_TTL = 1000*60*60*24*7; // 7 days
+const HIST_MAX_PER_KEY = 400;     // cap stored snapshots per weapon+bonus bucket
 
 // Which rank-war bonuses can appear on each weapon type.
 // Authoritative Torn weapon-bonus table (mapped to the API's sub_type values + exact bonus spellings).
@@ -314,6 +349,7 @@ let observedByType = {};    // {sub_type: [bonus titles seen in live listings]}
 let slotTypes = {};         // {slot: [sub_types]} derived from the catalog (Primary/Secondary/Melee/Temporary)
 let prefsRestored = false;  // restore saved search criteria only once per load
 let restoring = false;      // suppress prefs saving while we re-apply them
+let priceHistory = {};      // { "<weaponId>|<bonus>": [{t,c,n,mn,md}] } — locally observed listing prices
 
 // ---------- dom ----------
 const $ = id => document.getElementById(id);
@@ -324,7 +360,7 @@ const els = {
   bonusFilter:$("bonusFilter"), bonus2:$("bonus2"), bonusHint:$("bonusHint"), minBonusVal:$("minBonusVal"),
   maxPrice:$("maxPrice"), minDmg:$("minDmg"), rarityFilter:$("rarityFilter"),
   clearSearch:$("clearSearch"),
-  resultsHead:$("resultsHead"), results:$("results"), toast:$("toast")
+  resultsHead:$("resultsHead"), priceHistory:$("priceHistory"), results:$("results"), toast:$("toast")
 };
 
 // ---------- helpers ----------
@@ -473,12 +509,14 @@ function renderCombo(){
   // group by sub_type
   const groups = {};
   comboMatches.forEach(w=>{(groups[w.sub_type]=groups[w.sub_type]||[]).push(w);});
+  const selBonus = els.bonusFilter.value;   // if set, dim weapons that can't carry it
   let html = "";
   Object.keys(groups).sort().forEach(g=>{
     html += `<div class="combo-group">${g}</div>`;
     groups[g].forEach(w=>{
       const gi = comboMatches.indexOf(w);
-      html += `<div class="combo-item" data-i="${gi}">
+      const bad = selBonus && !bonusesForType(w.sub_type).includes(selBonus);
+      html += `<div class="combo-item${bad?' incompatible':''}" data-i="${gi}"${bad?` title="Can't carry ${selBonus}"`:''}>
         <img src="${w.image}" loading="lazy" onerror="this.style.visibility='hidden'">
         <span class="ci-name">${w.name}</span>
         <span class="ci-price">${w.market_price?money(w.market_price):""}</span>
@@ -510,18 +548,24 @@ function clearSelectedWeapon(){
   currentWeapon = null;
   els.weaponSearch.value = "";
   els.selWrap.innerHTML = "";
-  els.searchBtn.disabled = true;
+  updateSearchEnabled();
+}
+// search is runnable with a weapon OR a bonus-first selection
+function updateSearchEnabled(){
+  els.searchBtn.disabled = !(currentWeapon || els.bonusFilter.value);
 }
 els.slotFilter.addEventListener("change", ()=>{
   populateTypeFilter(els.slotFilter.value);         // narrow weapon types to this slot
   if(currentWeapon && !weaponMatchesFilters(currentWeapon)) clearSelectedWeapon();
   populateBonuses();                                // rescope bonuses to the slot
+  updateSearchEnabled();
   if(els.comboList.classList.contains("open")) renderCombo();
   savePrefs();
 });
 els.typeFilter.addEventListener("change", ()=>{
   if(currentWeapon && !weaponMatchesFilters(currentWeapon)) clearSelectedWeapon();
   populateBonuses();                                // rescope bonuses to the type
+  updateSearchEnabled();
   if(document.activeElement===els.weaponSearch||els.comboList.classList.contains("open")) renderCombo();
   savePrefs();
 });
@@ -539,6 +583,13 @@ document.addEventListener("mousedown", e=>{ if(!els.combo.contains(e.target)) cl
 
 function pickWeapon(w){
   if(!w) return;
+  // if a bonus is chosen first, block weapons that can't carry it (and say why)
+  const selBonus = els.bonusFilter.value;
+  if(selBonus && !bonusesForType(w.sub_type).includes(selBonus)){
+    toast(`${w.name} (${w.sub_type}) can't carry the “${selBonus}” bonus. Clear or change the bonus to pick it.`, true);
+    if(currentWeapon && els.weaponSearch.value.trim()==="") els.weaponSearch.value = currentWeapon.name;
+    return;
+  }
   currentWeapon = w;
   els.weaponSearch.value = w.name;
   closeCombo();
@@ -549,18 +600,31 @@ function pickWeapon(w){
       <div class="sw-meta">${w.sub_type} · avg ${w.market_price?money(w.market_price):"?"} · ${w.circulation!=null?fmt(w.circulation)+" in circ.":""}</div>
     </div>
   </div>`;
-  els.searchBtn.disabled = false;
   populateBonuses();
+  updateSearchEnabled();
   savePrefs();
 }
 
 // ---------- search listings ----------
 els.searchBtn.addEventListener("click", runSearch);
-els.bonusFilter.addEventListener("change", ()=>{ savePrefs(); if(currentWeapon) runSearch(); });
+els.bonusFilter.addEventListener("change", ()=>{
+  savePrefs();
+  updateSearchEnabled();
+  if(els.comboList.classList.contains("open")) renderCombo();   // refresh incompatible dimming
+  if(currentWeapon) runSearch();
+  else if(els.bonusFilter.value){ if(catalog.length) renderEligibleWeapons(els.bonusFilter.value); }
+  else showInitialEmpty();
+});
 async function runSearch(){
-  if(!apiKey){ toast("Save your API key first.",true); return; }
-  if(!currentWeapon){ toast("Pick a weapon first.",true); return; }
   const bonus = els.bonusFilter.value;
+  // bonus-first with no weapon: list every weapon that can carry it (no market call)
+  if(!currentWeapon){
+    if(!bonus){ toast("Pick a weapon, or a rank-war bonus, first.",true); return; }
+    if(!catalog.length){ toast("Weapon catalog is still loading…",true); return; }
+    renderEligibleWeapons(bonus);
+    return;
+  }
+  if(!apiKey){ toast("Save your API key first.",true); return; }
   usedBonusQuery = bonus;
   savePrefs();
   showLoading();
@@ -578,6 +642,8 @@ async function runSearch(){
       d: l.item_details || null
     }));
     currentWeapon._cache = im ? im.cache_timestamp : null;
+    // log this snapshot to the local price history (de-duped on Torn's cache timestamp)
+    recordPriceHistory(currentWeapon.id, bonus, currentWeapon._cache, listings);
     // self-correct: learn any bonuses actually present for this weapon type
     const seen = new Set();
     listings.forEach(r=>{ if(r.d && r.d.bonuses) r.d.bonuses.forEach(b=>seen.add(b.title)); });
@@ -586,12 +652,14 @@ async function runSearch(){
   }catch(e){
     els.results.innerHTML = `<div class="empty"><div class="big">⚠️</div><h3>Couldn't load listings</h3><div>${e.message}</div></div>`;
     els.resultsHead.style.display="none";
+    els.priceHistory.style.display="none";
     if(String(e.message).includes("key")) setKeyStatus("bad","Bad key");
     toast(e.message,true);
   }
 }
 function showInitialEmpty(){
   els.resultsHead.style.display = "none";
+  els.priceHistory.style.display = "none";
   const msg = apiKey
     ? "Choose a weapon on the left and hit <b>Search live listings</b>, then filter by rank-war bonus, price and stats."
     : "Enter your Torn <b>public</b> API key above, then choose a weapon and filter by rank-war bonus, price and stats.";
@@ -603,6 +671,7 @@ function showInitialEmpty(){
 }
 function showLoading(){
   els.resultsHead.style.display="none";
+  els.priceHistory.style.display="none";
   els.results.innerHTML = `<div class="empty"><div class="spinner"></div><h3>Fetching live listings…</h3><div>${currentWeapon.name}${usedBonusQuery?" · "+usedBonusQuery:""}</div></div>`;
 }
 
@@ -646,12 +715,71 @@ function sortRows(rows){
     else if(k==="amount"){va=a.amount;vb=b.amount;}
     else if(k==="dmg"){va=a.d&&a.d.stats?a.d.stats.damage??-1:-1;vb=b.d&&b.d.stats?b.d.stats.damage??-1:-1;}
     else if(k==="acc"){va=a.d&&a.d.stats?a.d.stats.accuracy??-1:-1;vb=b.d&&b.d.stats?b.d.stats.accuracy??-1:-1;}
+    else if(k==="quality"){va=a.d&&a.d.stats?a.d.stats.quality??-1:-1;vb=b.d&&b.d.stats?b.d.stats.quality??-1:-1;}
     else if(k==="bonus"){va=topBonusVal(a.d);vb=topBonusVal(b.d);}
     else {va=a.price;vb=b.price;}
     return (va-vb)*dir;
   });
 }
 function topBonusVal(d){ if(!d||!d.bonuses||!d.bonuses.length) return -1; return Math.max(...d.bonuses.map(x=>x.value)); }
+
+// Torn Item Market link. Torn's market URL only opens the weapon's category — it can't
+// deep-link to a single item — so the tooltip makes that clear. searchname= is passed in
+// case it pre-fills Torn's search box, but it does not change the category landing.
+function marketLink(w){
+  const url = "https://www.torn.com/page.php?sid=ItemMarket#/market/view=search"
+    + "&itemID=" + w.id
+    + "&searchname=" + encodeURIComponent(w.name)
+    + "&sortField=price&sortOrder=ASC";
+  const tip = "Opens the Torn Item Market. Note: Torn's link only opens the weapon's category, not this exact weapon — you may still need to search or scroll for it.";
+  return `<a class="mkt-link" href="${url}" target="_blank" rel="noopener" data-tip-title="Open in Torn Item Market" data-tip-body="${tip}">🛒 Market ↗</a>`;
+}
+
+// Bonus-first view: list every catalog weapon that can carry the chosen bonus (no market call).
+function renderEligibleWeapons(bonus){
+  usedBonusQuery = bonus;
+  listings = [];
+  els.priceHistory.style.display = "none";
+  const wpns = weaponsWithBonus(bonus)
+    .slice()
+    .sort((a,b)=> (a.market_price==null)-(b.market_price==null) || (a.market_price||0)-(b.market_price||0) || a.name.localeCompare(b.name));
+  els.resultsHead.style.display = "flex";
+  els.resultsHead.innerHTML = `
+    <div class="stat"><div class="s-label">Rank-war bonus</div><div class="s-val" style="font-size:15px">${bonus}</div></div>
+    <div class="stat"><div class="s-label">Weapons that can roll it</div><div class="s-val">${wpns.length}</div></div>
+    ${BONUS_INFO[bonus]?`<div style="margin-left:auto;align-self:center;max-width:50%"><span class="hint">${BONUS_INFO[bonus]}</span></div>`:""}`;
+  if(!wpns.length){
+    els.results.innerHTML = `<div class="empty"><div class="big">🕳️</div><h3>No weapons carry ${bonus}</h3><div>Pick a different bonus.</div></div>`;
+    return;
+  }
+  let html = `<div class="tablewrap"><table><thead><tr>
+    <th class="img-col"></th>
+    <th>Weapon</th>
+    <th>Type</th>
+    <th class="num">Avg market price</th>
+    <th></th>
+    <th></th>
+  </tr></thead><tbody>`;
+  wpns.forEach(w=>{
+    html += `<tr class="pickrow" data-id="${w.id}">
+      <td class="img-col"><img class="row-img" src="${w.image}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"></td>
+      <td>${w.name}</td>
+      <td>${w.sub_type}</td>
+      <td class="num">${w.market_price?money(w.market_price):'<span style="color:var(--faint)">–</span>'}</td>
+      <td><span class="hint">view live listings →</span></td>
+      <td>${marketLink(w)}</td>
+    </tr>`;
+  });
+  html += `</tbody></table></div>`;
+  els.results.innerHTML = html;
+  [...els.results.querySelectorAll("tr.pickrow")].forEach(tr=>{
+    tr.addEventListener("click", e=>{
+      if(e.target.closest("a")) return;        // let the Market link open normally
+      const w = catalog.find(x=>String(x.id)===tr.dataset.id);
+      if(w){ pickWeapon(w); runSearch(); }
+    });
+  });
+}
 
 function bonusChips(d){
   if(!d||!d.bonuses||!d.bonuses.length) return '<span style="color:var(--faint)">—</span>';
@@ -667,6 +795,94 @@ function rarDot(d){
   return `<span class="rar ${cls}" title="${r?r+' rarity':'standard'}"></span>`;
 }
 
+// ---------- local price history (observed listings, stored per weapon+bonus) ----------
+function histKey(weaponId, bonus){ return weaponId + "|" + (bonus||""); }
+function loadHistory(){
+  try{ priceHistory = JSON.parse(localStorage.getItem(LS_HIST)||"{}") || {}; }
+  catch(e){ priceHistory = {}; }
+}
+function saveHistory(){
+  try{ localStorage.setItem(LS_HIST, JSON.stringify(priceHistory)); }catch(e){ /* quota — ignore */ }
+}
+function median(arr){
+  if(!arr.length) return null;
+  const s = arr.slice().sort((a,b)=>a-b), m = s.length>>1;
+  return s.length%2 ? s[m] : (s[m-1]+s[m])/2;
+}
+// record one market snapshot for the current weapon+bonus, de-duped on Torn's cache timestamp
+function recordPriceHistory(weaponId, bonus, cacheTs, rows){
+  const prices = rows.map(r=>r.price).filter(p=>typeof p==="number");
+  if(!prices.length) return;
+  const key = histKey(weaponId, bonus);
+  const list = priceHistory[key] || (priceHistory[key] = []);
+  const last = list[list.length-1];
+  const entry = { t: Math.floor(Date.now()/1000), c: cacheTs||null, n: prices.length,
+                  mn: Math.min(...prices), md: Math.round(median(prices)) };
+  // skip if Torn's underlying market data hasn't refreshed since the last logged point
+  if(last && cacheTs && last.c===cacheTs){ return; }
+  list.push(entry);
+  if(list.length>HIST_MAX_PER_KEY) list.splice(0, list.length-HIST_MAX_PER_KEY);
+  saveHistory();
+}
+// tiny dependency-free sparkline of the "min price seen" series
+function sparkline(points, w, h){
+  if(points.length<2) return "";
+  const xs = points.map(p=>p.t), ys = points.map(p=>p.mn);
+  const x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+  const sx = t => x1===x0 ? w/2 : ((t-x0)/(x1-x0))*(w-6)+3;
+  const sy = v => y1===y0 ? h/2 : h-3-((v-y0)/(y1-y0))*(h-6);
+  const d = points.map((p,i)=>(i?"L":"M")+sx(p.t).toFixed(1)+" "+sy(p.mn).toFixed(1)).join(" ");
+  const lastX = sx(xs[xs.length-1]).toFixed(1), lastY = sy(ys[ys.length-1]).toFixed(1);
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" preserveAspectRatio="none" aria-hidden="true">
+    <path d="${d}" fill="none" stroke="var(--green)" stroke-width="1.5"/>
+    <circle cx="${lastX}" cy="${lastY}" r="2.4" fill="var(--green)"/></svg>`;
+}
+// render the "prices seen over time" panel for the current weapon + queried bonus
+function renderPriceHistory(currentMin){
+  const el = els.priceHistory;
+  if(!currentWeapon){ el.style.display="none"; return; }
+  const bonus = usedBonusQuery || "";
+  const list = priceHistory[histKey(currentWeapon.id, bonus)] || [];
+  if(list.length<2){ el.style.display="none"; return; }   // need at least two points for a trend
+  const mins = list.map(p=>p.mn);
+  const lowest = Math.min(...mins), latest = list[list.length-1].mn;
+  const medOfMins = Math.round(median(mins));
+  const first = list[0].t, last = list[list.length-1].t;
+  const fmtDate = t => new Date(t*1000).toLocaleDateString("en-US",{month:"short",day:"numeric"});
+  // how the current cheapest listing compares to the median of what we've seen
+  let vs = "";
+  if(currentMin!=null && medOfMins){
+    const pct = Math.round((currentMin-medOfMins)/medOfMins*100);
+    const cls = pct<=0 ? "green" : "amber";
+    const word = pct<0 ? `${-pct}% below` : pct>0 ? `${pct}% above` : "right at";
+    vs = `<div class="ph-vs">Current cheapest is <span class="${cls}">${word}</span> the median seen.</div>`;
+  }
+  el.style.display = "block";
+  el.innerHTML = `
+    <div class="ph-head">
+      <div class="ph-title">📈 Prices seen over time${bonus?` · <span class="ph-bonus">${bonus}</span>`:""}</div>
+      <a href="#" class="ph-clear" data-clear="1">clear</a>
+    </div>
+    <div class="ph-body">
+      <div class="ph-tiles">
+        <div class="ph-tile"><div class="ph-l">Lowest seen</div><div class="ph-v green">${money(lowest)}</div></div>
+        <div class="ph-tile"><div class="ph-l">Median seen</div><div class="ph-v">${money(medOfMins)}</div></div>
+        <div class="ph-tile"><div class="ph-l">Latest</div><div class="ph-v">${money(latest)}</div></div>
+        <div class="ph-tile"><div class="ph-l">Snapshots</div><div class="ph-v">${list.length}<span class="ph-sub"> · ${fmtDate(first)}–${fmtDate(last)}</span></div></div>
+      </div>
+      <div class="ph-chart">${sparkline(list, 520, 46)}</div>
+      ${vs}
+      <div class="ph-note">Cheapest-listing prices this tool has logged for ${currentWeapon.name}${bonus?` with ${bonus}`:""} — observed market snapshots, <b>not confirmed sales</b>. Builds up as you search.</div>
+    </div>`;
+  const clr = el.querySelector("[data-clear]");
+  if(clr) clr.addEventListener("click", e=>{
+    e.preventDefault();
+    delete priceHistory[histKey(currentWeapon.id, bonus)];
+    saveHistory();
+    renderPriceHistory(currentMin);
+  });
+}
+
 function renderResults(){
   const filtered = applyFilters(listings);
   const rows = sortRows(filtered);
@@ -680,6 +896,8 @@ function renderResults(){
     <div class="stat"><div class="s-label">Showing</div><div class="s-val">${rows.length}<span style="font-size:12px;color:var(--muted)"> / ${listings.length}</span></div></div>
     <div class="stat"><div class="s-label">Cheapest match</div><div class="s-val green">${min!=null?money(min):"–"}</div></div>
     ${cacheAge!=null?`<div style="margin-left:auto;align-self:center"><span class="hint">market data ~${cacheAge}m old</span></div>`:""}`;
+
+  renderPriceHistory(min);   // locally-logged price trend for this weapon + bonus
 
   if(!listings.length){
     els.results.innerHTML = `<div class="empty"><div class="big">🕳️</div><h3>No live listings</h3><div>Nobody is selling ${currentWeapon.name}${usedBonusQuery?" with "+usedBonusQuery:""} right now.</div></div>`;
@@ -709,8 +927,9 @@ function renderResults(){
     <th>Rarity</th>
     <th data-k="dmg">Dmg ${arw("dmg")}</th>
     <th data-k="acc">Acc ${arw("acc")}</th>
-    <th>Quality</th>
+    <th data-k="quality">Quality ${arw("quality")}</th>
     <th data-k="bonus">Rank-war bonuses ${arw("bonus")}</th>
+    <th></th>
   </tr></thead><tbody>`;
   rows.forEach((r,i)=>{
     const d=r.d, st=d&&d.stats?d.stats:{};
@@ -724,6 +943,7 @@ function renderResults(){
       ${statCell(st.accuracy, "Accuracy", `This copy: ${round2(st.accuracy)}${st.quality!=null?` @ ${round2(st.quality)}% quality`:""}`+(baseAcc!=null?`\nWeapon base (100% quality): ${baseAcc}`:"")+`\nAccuracy rises with quality.\nIn these ${rows.length} listings: ${accRange}`)}
       ${statCell(st.quality, "Quality", `This copy: ${round2(st.quality)}%\nPossible range: 0%–100%\nHigher quality → more damage & accuracy.\nIn these ${rows.length} listings: ${qRange}`)}
       <td>${bonusChips(d)}</td>
+      <td>${marketLink(currentWeapon)}</td>
     </tr>`;
   });
   html += `</tbody></table></div>`;
@@ -751,9 +971,10 @@ els.clearSearch.addEventListener("click", ()=>{
   populateTypeFilter("");             // reset type options to all
   els.typeFilter.value = "";
   els.selWrap.innerHTML = "";
-  els.searchBtn.disabled = true;
   closeCombo();
-  populateBonuses();                  // clears + disables both bonus dropdowns
+  els.bonusFilter.value = ""; els.bonus2.value = "";   // reset before repopulating so nothing is retained
+  populateBonuses();                  // repopulates the (now unscoped) bonus dropdowns
+  updateSearchEnabled();              // nothing selected → disabled
   // refinements
   els.minBonusVal.value = ""; els.maxPrice.value = ""; els.minDmg.value = ""; els.rarityFilter.value = "";
   // results
@@ -786,36 +1007,49 @@ function bonusesForType(type){
   const obs = observedByType[type] || [];
   return [...new Set([...base, ...obs])].sort((a,b)=>a.localeCompare(b));
 }
-// bonuses relevant to the current selection: weapon > type > slot (union) > none
+// every rank-war bonus known across all weapon types (seed ∪ observed ∪ catalog types)
+function allBonuses(){
+  const set = new Set();
+  const types = new Set([...Object.keys(BONUS_BY_TYPE), ...Object.keys(observedByType), ...catalog.map(w=>w.sub_type)]);
+  types.forEach(t=>bonusesForType(t).forEach(b=>set.add(b)));
+  return [...set].sort((a,b)=>a.localeCompare(b));
+}
+// weapons in the catalog that can carry a given bonus
+function weaponsWithBonus(bonus){
+  return catalog.filter(w=>bonusesForType(w.sub_type).includes(bonus));
+}
+// bonuses relevant to the current selection: weapon > type > slot (union) > all bonuses (unscoped)
 function contextBonuses(){
-  if(currentWeapon) return { list: bonusesForType(currentWeapon.sub_type), label: currentWeapon.sub_type+" weapons" };
+  if(currentWeapon) return { list: bonusesForType(currentWeapon.sub_type), label: currentWeapon.sub_type+" weapons", scoped:true };
   const type = els.typeFilter.value;
-  if(type) return { list: bonusesForType(type), label: type+" weapons" };
+  if(type) return { list: bonusesForType(type), label: type+" weapons", scoped:true };
   const slot = els.slotFilter.value;
   if(slot && slotTypes[slot]){
     const set = new Set();
     slotTypes[slot].forEach(t=>bonusesForType(t).forEach(b=>set.add(b)));
-    return { list: [...set].sort((a,b)=>a.localeCompare(b)), label: slot+" weapons" };
+    return { list: [...set].sort((a,b)=>a.localeCompare(b)), label: slot+" weapons", scoped:true };
   }
-  return { list: [], label: null };
+  // nothing scoped: offer every bonus, so a bonus can be picked before any weapon
+  return { list: allBonuses(), label: "any weapon", scoped:false };
 }
 // populate both bonus selects for the current slot/type/weapon context
 function populateBonuses(){
-  const { list, label } = contextBonuses();
+  const { list, label, scoped } = contextBonuses();
   const prev1 = els.bonusFilter.value, prev2 = els.bonus2.value;
   const opts = list.map(b=>`<option value="${b}">${b}</option>`).join("");
   els.bonusFilter.innerHTML = '<option value="">Any bonus</option>' + opts;
   els.bonus2.innerHTML = '<option value="">— any —</option>' + opts;
   els.bonusFilter.value = list.includes(prev1) ? prev1 : "";
   els.bonus2.value = list.includes(prev2) ? prev2 : "";
-  const hasCtx = !!label;
-  const none = hasCtx && list.length === 0;
-  els.bonusFilter.disabled = !hasCtx || none;
-  els.bonus2.disabled = !hasCtx || none;
-  if(!hasCtx){
-    els.bonusHint.textContent = "Pick a slot, type or weapon to see the available bonuses.";
-  } else if(none){
+  const none = list.length === 0;
+  // primary bonus is always usable when any bonus exists (drives the bonus-first weapon list)
+  els.bonusFilter.disabled = none;
+  // "also must have" only refines loaded listings, so keep it to a scoped (weapon/type/slot) context
+  els.bonus2.disabled = !scoped || none;
+  if(none){
     els.bonusHint.innerHTML = `<span style="color:var(--amber)">${label} carry no rank-war bonuses.</span>`;
+  } else if(!scoped){
+    els.bonusHint.textContent = "Pick a bonus to list every weapon that can roll it — or choose a weapon first.";
   } else {
     els.bonusHint.textContent = `${list.length} bonuses possible on ${label} — queries the market for the cheapest carrying it.`;
   }
@@ -884,12 +1118,16 @@ function restorePrefs(){
   els.maxPrice.value = p.maxPrice || "";
   els.minDmg.value = p.minDmg || "";
   restoring = false;
+  updateSearchEnabled();
   // pick up right where they left off
-  if(weapon && apiKey) runSearch(); else savePrefs();
+  if(weapon && apiKey) runSearch();
+  else if(!weapon && els.bonusFilter.value && catalog.length) renderEligibleWeapons(els.bonusFilter.value);
+  else savePrefs();
 }
 
 // ---------- init ----------
 loadObserved();
+loadHistory();
 populateBonuses();
 loadKey();
 showInitialEmpty();
